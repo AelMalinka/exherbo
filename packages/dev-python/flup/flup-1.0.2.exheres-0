@@ -10,7 +10,7 @@ HOMEPAGE="http://trac.saddi.com/flup"
 
 LICENCES="BSD"
 SLOT="0"
-PLATFORMS="~x86 ~amd64"
+PLATFORMS="~amd64 ~x86"
 
 MYOPTIONS=""
 

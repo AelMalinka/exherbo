@@ -11,7 +11,7 @@ HOMEPAGE="http://webpy.org/"
 
 LICENCES="public-domain"
 SLOT="0"
-PLATFORMS="~x86 ~amd64"
+PLATFORMS="~amd64 ~x86"
 
 MYOPTIONS="
 	lighttpd [[ description = [ Add support for running web-apps through lighttpd ] ]]
