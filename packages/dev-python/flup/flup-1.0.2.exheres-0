@@ -4,7 +4,7 @@
 require distutils
 
 SUMMARY="random Python WSGI stuff"
-DESCRIPTION="This Python package is a random collection of WSGI modules I've written. fcgi and publisher have long existed since I became interested in Python web programming a few years ago. They have been recently cleaned up and retrofitted with WSGI. The other modules just followed as I explored the possibilities of WSGI."
+DESCRIPTION="This Python package is a random collection of WSGI modules. fcgi and publisher have been recently cleaned up and retrofitted with WSGI."
 DOWNLOADS="http://www.saddi.com/software/flup/dist/${PNV}.tar.gz"
 HOMEPAGE="http://trac.saddi.com/flup"
 

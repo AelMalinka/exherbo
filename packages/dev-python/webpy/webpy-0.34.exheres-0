@@ -4,7 +4,7 @@
 require distutils
 
 MY_PNV="web.py-${PV}"
-SUMMARY="makes web apps"
+SUMMARY="web framework focusing on simplicity and a direct mapping between concept and code"
 DESCRIPTION="web.py is a web framework for python that is as simple as it is powerful. web.py is in the public domain; you can use it for whatever purpose with absolutely no restrictions."
 DOWNLOADS="http://webpy.org/static/${MY_PNV}.tar.gz"
 HOMEPAGE="http://webpy.org/"
