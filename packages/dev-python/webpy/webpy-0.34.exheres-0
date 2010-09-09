@@ -13,23 +13,15 @@ LICENCES="public-domain"
 SLOT="0"
 PLATFORMS="~amd64 ~x86"
 
-MYOPTIONS="
-	lighttpd [[ description = [ Add support for running web-apps through lighttpd ] ]]
-	apache [[ description = [ Add support for running web-apps through mod_wsgi ] ]]
-	postgresql
-	mysql
-	sqlite
-"
-
 DEPENDENCIES="
 	build:
 		dev-python/setuptools
-	run:
-		lighttpd? ( dev-python/flup )
-		apache? ( www-servers/mod_wsgi )
-		postgresql? ( dev-python/psycopg2 )
-		mysql? ( dev-python/mysql-python )
-		sqlite? ( dev-python/pysqlite )
+	suggestion:
+		dev-python/flup [[ description = [ Add support for running with lighttpd ] ]]
+		www-servers/mod_wsgi [[ description = [ Add support for running with apache via mod_wsgi ] ]]
+		dev-python/psycopg2 [[ description = [ Add support for postgresql ] ]]
+		dev-python/mysql-python [[ description = [ Add support for mysql ] ]]
+		dev-python/pysqlite [[ description = [ Add support for sqlite ] ]]
 "
 
 WORK="${WORKBASE}/${MY_PNV}"
