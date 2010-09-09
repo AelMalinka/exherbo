@@ -1,0 +1,35 @@
+# Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public Licesnse v2
+
+require distutils
+
+MY_PNV="web.py-${PV}"
+SUMMARY="makes web apps"
+DESCRIPTION="web.py is a web framework for python that is as simple as it is powerful. web.py is in the public domain; you can use it for whatever purpose with absolutely no restrictions."
+DOWNLOADS="http://webpy.org/static/${MY_PNV}.tar.gz"
+HOMEPAGE="http://webpy.org/"
+
+LICENCES="public-domain"
+SLOT="0"
+PLATFORMS="~x86 ~amd64"
+
+MYOPTIONS="
+	lighttpd [[ description = [ Add support for running web-apps through lighttpd ] ]]
+	apache [[ description = [ Add support for running web-apps through mod_wsgi ] ]]
+	postgresql
+	mysql
+	sqlite
+"
+
+DEPENDENCIES="
+	build:
+		dev-python/setuptools
+	run:
+		lighttpd? ( dev-python/flup )
+		apache? ( www-servers/mod_wsgi )
+		postgresql? ( dev-python/psycopg2 )
+		mysql? ( dev-python/mysql-python )
+		sqlite? ( dev-python/pysqlite )
+"
+
+WORK="${WORKBASE}/${MY_PNV}"

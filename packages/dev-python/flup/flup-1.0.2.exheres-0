@@ -1,0 +1,20 @@
+# Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public Licesnse v2
+
+require distutils
+
+SUMMARY="random Python WSGI stuff"
+DESCRIPTION="This Python package is a random collection of WSGI modules I've written. fcgi and publisher have long existed since I became interested in Python web programming a few years ago. They have been recently cleaned up and retrofitted with WSGI. The other modules just followed as I explored the possibilities of WSGI."
+DOWNLOADS="http://www.saddi.com/software/flup/dist/${PNV}.tar.gz"
+HOMEPAGE="http://trac.saddi.com/flup"
+
+LICENCES="BSD"
+SLOT="0"
+PLATFORMS="~x86 ~amd64"
+
+MYOPTIONS=""
+
+DEPENDENCIES="
+	build:
+		dev-python/setuptools
+"
