@@ -3,8 +3,9 @@
 
 require distutils
 
-SUMMARY="random Python WSGI stuff"
-DESCRIPTION="This Python package is a random collection of WSGI modules. fcgi and publisher have been recently cleaned up and retrofitted with WSGI."
+SUMMARY="A collection of WSGI modules"
+DESCRIPTION="WSGI (Web Server Gateway Interface) is an interface between webservers and web applications for python, based on CGI.
+flup is a collection of modules which implement WSGI on one side and another common protocol (currently AJP, SCGI, and FastCGI) on the other side. Allowing a webserver to speak WSGI through flup as long as it can interface to flup"
 DOWNLOADS="http://www.saddi.com/software/flup/dist/${PNV}.tar.gz"
 HOMEPAGE="http://trac.saddi.com/flup"
 

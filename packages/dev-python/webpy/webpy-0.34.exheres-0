@@ -17,10 +17,10 @@ DEPENDENCIES="
 	build:
 		dev-python/setuptools
 	suggestion:
-		dev-python/flup [[ description = [ Add support for running with lighttpd ] ]]
-		dev-python/mysql-python [[ description = [ Add support for mysql ] ]]
-		dev-python/psycopg2 [[ description = [ Add support for postgresql ] ]]
-		dev-python/pysqlite [[ description = [ Add support for sqlite ] ]]
-		www-servers/mod_wsgi [[ description = [ Add support for running with apache via mod_wsgi ] ]]"
+		dev-python/flup [[ description = [ Add support for running web apps with lighttpd ] ]]
+		dev-python/mysql-python [[ description = [ Add support for connecting to and querying mysql database ] ]]
+		dev-python/psycopg2 [[ description = [ Add support for connecting to and querying a postgresql database ] ]]
+		dev-python/pysqlite [[ description = [ Add support for connecting to and querying a sqlite database ] ]]
+		www-servers/mod_wsgi [[ description = [ Add support for running web apps with apache through mod_wsgi. mod_wsgi is an apache module wich implements Web Server Gateway Interface ] ]]"
 
 WORK="${WORKBASE}/${MY_PNV}"
