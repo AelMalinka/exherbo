@@ -18,10 +18,9 @@ DEPENDENCIES="
 		dev-python/setuptools
 	suggestion:
 		dev-python/flup [[ description = [ Add support for running with lighttpd ] ]]
-		www-servers/mod_wsgi [[ description = [ Add support for running with apache via mod_wsgi ] ]]
-		dev-python/psycopg2 [[ description = [ Add support for postgresql ] ]]
 		dev-python/mysql-python [[ description = [ Add support for mysql ] ]]
+		dev-python/psycopg2 [[ description = [ Add support for postgresql ] ]]
 		dev-python/pysqlite [[ description = [ Add support for sqlite ] ]]
-"
+		www-servers/mod_wsgi [[ description = [ Add support for running with apache via mod_wsgi ] ]]"
 
 WORK="${WORKBASE}/${MY_PNV}"
