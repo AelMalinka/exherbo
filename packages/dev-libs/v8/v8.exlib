@@ -1,0 +1,60 @@
+# Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public Licesnse v2
+
+export_exlib_phases src_configure src_compile src_install src_test
+
+SUMMARY="Google V8 Javascript engine"
+DESCRIPTION="Implements ECMAScript as specified in ECMA-262, 3rd Edition, runs standalone or embedded into any C++ Application"
+HOMEPAGE="http://code.google.com/p/v8/"
+
+LICENCES="BSD-3"
+
+DEPENDENCIES="
+    build:
+        sys-devel/scons[>=1.0.0]
+"
+
+V8_SRC_COMPILE_PARAMS=(
+    "arch=x64"
+    "library=shared"
+)
+
+v8_src_configure() {
+    :
+}
+
+v8_escons() {
+    illegal_in_global_scope
+
+    edo scons \
+        --jobs=${EXJOBS:-1} \
+        CFLAGS="${CFLAGS}" \
+        CXXFLAGS="${CXXFLAGS}" \
+        LDFLAGS="${LDFLAGS}" \
+        ${V8_SRC_COMPILE_PARAMS[@]} \
+        "$@"
+}
+
+v8_src_compile() {
+    v8_escons
+    v8_escons d8
+}
+
+v8_src_install() {
+    insinto /usr
+    doins -r include
+    dolib libv8.so
+    dolib libv8preparser.so
+    dobin d8
+
+    emagicdocs
+}
+
+v8_src_test() {
+    LD_LIBRARY_PATH="." edo tools/test.py \
+        -j ${EXJOBS:-1} \
+        --arch=x64 \
+        --progress=verbose \
+        --shell="${WORK}/d8" \
+        -S "library=shared"
+}

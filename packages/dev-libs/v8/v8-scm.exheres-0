@@ -1,0 +1,13 @@
+# Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public Licesnse v2
+
+SCM_REPOSITORY="http://v8.googlecode.com/svn/"
+
+require v8 scm-svn
+
+SLOT="0"
+PLATFORMS="~amd64"
+
+pkg_preinst() {
+    edo rm -rf "${IMAGE}/usr/include/.svn"
+}
