@@ -9,7 +9,7 @@ flup is a collection of modules which implement WSGI on one side and another com
 DOWNLOADS="http://www.saddi.com/software/flup/dist/${PNV}.tar.gz"
 HOMEPAGE="http://trac.saddi.com/flup"
 
-LICENCES="BSD"
+LICENCES="BSD-2"
 SLOT="0"
 PLATFORMS="~amd64 ~x86"
 
