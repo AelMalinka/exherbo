@@ -49,6 +49,8 @@ v8_src_install() {
     dobin d8
 
     emagicdocs
+
+    if ever at_least scm ; then edo rm -rf "${IMAGE}/usr/include/.svn" ; fi
 }
 
 v8_src_test() {

@@ -7,7 +7,3 @@ require v8 scm-svn
 
 SLOT="0"
 PLATFORMS="~amd64"
-
-pkg_preinst() {
-    edo rm -rf "${IMAGE}/usr/include/.svn"
-}
