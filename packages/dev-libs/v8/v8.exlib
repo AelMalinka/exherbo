@@ -1,11 +1,12 @@
 # Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
 # Distributed under the terms of the GNU General Public Licesnse v2
 
+require googlecode
+
 export_exlib_phases src_configure src_compile src_install src_test
 
 SUMMARY="Google V8 Javascript engine"
 DESCRIPTION="Implements ECMAScript as specified in ECMA-262, 3rd Edition, runs standalone or embedded into any C++ Application"
-HOMEPAGE="http://code.google.com/p/v8/"
 
 LICENCES="BSD-3"
 
