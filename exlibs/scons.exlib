@@ -26,7 +26,7 @@ scons_src_compile() {
         CFLAGS="${CFLAGS}" \
         CXXFLAGS="${CXXFLAGS}" \
         LDFLAGS="${LDFLAGS}" \
-        "${SCONS_SRC_COMPILE_PARAMS[@]}"
+        "${SCONS_SRC_COMPILE_PARAMS[@]}" \
         "${@}"
 }
 
@@ -34,6 +34,8 @@ scons_src_install() {
     escons \
         --config=cache \
         DESTDIR="${IMAGE}" \
+        "${SCONS_SRC_COMPILE_PARAMS[@]}" \
         "${SCONS_SRC_INSTALL_PARAMS[@]}" \
+        "${@}"
         install
 }
