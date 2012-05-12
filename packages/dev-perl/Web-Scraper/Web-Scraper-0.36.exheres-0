@@ -1,0 +1,21 @@
+# Copyright 2012 Michael Thomas <aelalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+require perl-module [ module_author=MIYAGAWA ]
+
+SUMMARY="Web Scraping Toolkit using HTML and CSS Selectors or XPath expressions"
+
+SLOT="0"
+PLATFORMS="~amd64"
+MYOPTIONS=""
+
+DEPENDENCIES="
+    dev-perl/HTML-TreeBuilder-XPath
+    dev-perl/HTML-Selector-XPath
+    dev-perl/libwww-perl
+    dev-perl/Test-Base
+    dev-perl/Test-Requires
+    dev-perl/URI
+    dev-perl/YAML
+    dev-perl/UNIVERSAL-require
+"
