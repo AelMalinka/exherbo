@@ -1,0 +1,15 @@
+# Copyright 2012 Michael Thomas <aelalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+require perl-module [ module_author=MIROD ]
+
+SUMMARY="add XPath support to HTML::TreeBuilder"
+
+SLOT="0"
+PLATFORMS="~amd64"
+MYOPTIONS=""
+
+DEPENDENCIES="
+    dev-perl/HTML-Tree
+    dev-perl/XML-XPathEngine
+"
