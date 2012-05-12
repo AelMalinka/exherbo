@@ -1,0 +1,14 @@
+# Copyright 2012 Michael Thomas <aelalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+require perl-module [ module_author=CORION ]
+
+SUMMARY="CSS Selector to XPath compiler"
+
+SLOT="0"
+PLATFORMS="~amd64"
+MYOPTIONS=""
+
+DEPENDENCIES="
+    dev-perl/Test-Base
+"
