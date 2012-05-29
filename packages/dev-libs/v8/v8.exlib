@@ -21,7 +21,8 @@ SCONS_SRC_COMPILE_PARAMS=(
 
 v8_src_compile() {
     scons_src_compile
-    scons_src_compile d8
+    SCONS_SRC_COMPILE_PARAMS+=( d8 )
+    scons_src_compile
 }
 
 v8_src_install() {
