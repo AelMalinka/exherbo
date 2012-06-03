@@ -1,0 +1,10 @@
+# Copyright 2012 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+SUMMARY="Light-Weight Process library implemented in userspace"
+HOMEPAGE="http://coda.cs.cmu.edu/"
+DOWNLOADS="ftp://coda.cs.cmu.edu/pub/${PN}/src/${PNV}.tar.gz"
+
+LICENCES="GPL-2"
+SLOT="0"
+PLATFORMS="~amd64"
