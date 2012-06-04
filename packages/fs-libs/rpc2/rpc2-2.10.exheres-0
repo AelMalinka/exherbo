@@ -1,0 +1,24 @@
+# Copyright 2012 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+SUMMARY="A portable and extensible remote procedure call package built on top of the IP/UDP network protocol."
+HOMEPAGE="http://coda.cs.cmu.edu/"
+DOWNLOADS="ftp://coda.cs.cmu.edu/pub/${PN}/src/${PNV}.tar.gz"
+
+LICENCES="GPL-2"
+SLOT="0"
+PLATFORMS="~amd64"
+MYOPTIONS=""
+
+DEPENDENCIES="
+    build+run:
+        fs-libs/lwp
+        sys-devel/bison
+        sys-devel/flex
+"
+
+src_install() {
+    default
+
+    rmdir "${IMAGE}/usr/share/rpc2"
+}
