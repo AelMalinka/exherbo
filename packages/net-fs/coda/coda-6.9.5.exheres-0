@@ -1,0 +1,54 @@
+# Copyright 2012 Michael Thomas <aelmalinka@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+
+SUMMARY="An advanced networked filesystem."
+DESCRIPTION="Coda is a distributed filesystem with its origin in AFS2. It has many features that are very desirable for network filesystems. Currently, Coda has several features not found elsewhere.
+
+disconnected operation for mobile computing
+is freely available under a liberal license
+high performance through client side persistent caching
+server replication
+security model for authentication, encryption and access control
+continued operation during partial network failures in server network
+network bandwith adaptation
+good scalability
+well defined semantics of sharing, even in the presence of network failures
+"
+HOMEPAGE="http://coda.cs.cmu.edu/"
+DOWNLOADS="ftp://coda.cs.cmu.edu/pub/${PN}/src/${PNV}.tar.gz"
+
+LICENCES="GPL-2"
+SLOT="0"
+PLATFORMS="~amd64"
+MYOPTIONS="
+(
+    server [[ description = [ Build the server side supports ] ]]
+    client [[ description = [ Build the client side supports ] ]]
+) [[ number-selected = at-least-one ]]"
+
+DEPENDENCIES="
+    build+run:
+        dev-lang/perl:=
+        dev-lang/python:=
+        fs-libs/lwp
+        fs-libs/rpc2
+        fs-libs/rvm
+        sys-devel/bison
+        sys-devel/flex
+        x11-libs/fltk
+"
+
+DEFAULT_SRC_CONFIGURE_PARAMS=(
+    --without-krb4
+    --without-krb5
+)
+DEFAULT_SRC_CONFIGURE_OPTION_ENABLES=(
+    client
+    server
+)
+
+src_install() {
+    default
+
+    rmdir "${IMAGE}/usr/share/man/man5"
+}
