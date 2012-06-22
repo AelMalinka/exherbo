@@ -10,6 +10,7 @@ PLATFORMS="~amd64"
 MYOPTIONS=""
 
 DEPENDENCIES="
-    dev-perl/HTML-Tree
-    dev-perl/XML-XPathEngine
+    build+run:
+        dev-perl/HTML-Tree
+        dev-perl/XML-XPathEngine
 "

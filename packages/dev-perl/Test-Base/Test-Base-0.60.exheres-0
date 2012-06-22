@@ -9,4 +9,7 @@ SLOT="0"
 PLATFORMS="~amd64"
 MYOPTIONS=""
 
-DEPENDENCIES="dev-perl/Spiffy"
+DEPENDENCIES="
+    build+run:
+        dev-perl/Spiffy
+"

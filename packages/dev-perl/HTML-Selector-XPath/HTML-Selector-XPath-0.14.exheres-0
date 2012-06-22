@@ -10,5 +10,6 @@ PLATFORMS="~amd64"
 MYOPTIONS=""
 
 DEPENDENCIES="
-    dev-perl/Test-Base
+    build+run:
+        dev-perl/Test-Base
 "

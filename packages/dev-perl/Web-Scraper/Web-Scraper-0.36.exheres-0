@@ -10,12 +10,13 @@ PLATFORMS="~amd64"
 MYOPTIONS=""
 
 DEPENDENCIES="
-    dev-perl/HTML-TreeBuilder-XPath
-    dev-perl/HTML-Selector-XPath
-    dev-perl/libwww-perl
-    dev-perl/Test-Base
-    dev-perl/Test-Requires
-    dev-perl/URI
-    dev-perl/YAML
-    dev-perl/UNIVERSAL-require
+    build+run:
+        dev-perl/HTML-TreeBuilder-XPath
+        dev-perl/HTML-Selector-XPath
+        dev-perl/libwww-perl
+        dev-perl/Test-Base
+        dev-perl/Test-Requires
+        dev-perl/URI
+        dev-perl/YAML
+        dev-perl/UNIVERSAL-require
 "
