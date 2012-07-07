@@ -1,9 +1,17 @@
 # Copyright 2010 Michael Thomas <aelmalinka@gmail.com>
 # Distributed under the terms of the GNU General Public Licesnse v2
 
+myexparam gyp_revision=""
+
 SCM_REPOSITORY="http://v8.googlecode.com/svn/"
 
-require googlecode scons scm-svn
+SCM_gyp_REPOSITORY="http://gyp.googlecode.com/svn/"
+[[ "$(exparam gyp_revision)" ]] && SCM_gyp_REVISION=$(exparam gyp_revision)
+SCM_gyp_UNPACK_TO="${WORK}/build/gyp"
+
+SCM_SECONDARY_REPOSITORIES="gyp"
+
+require googlecode scm-svn
 
 DOWNLOADS=""
 
@@ -14,23 +22,40 @@ DESCRIPTION="Implements ECMAScript as specified in ECMA-262, 3rd Edition, runs s
 
 LICENCES="BSD-3"
 
-SCONS_SRC_COMPILE_PARAMS=(
-    "arch=x64"
-    "library=shared"
-)
+MYOPTIONS="
+    platform:
+        x86
+        amd64
+"
+
+v8_platform() {
+    if option "platform:amd64" ; then
+        echo "x64"
+    elif option "platform:x86" ; then
+        echo "ia32"
+    fi
+}
 
 v8_src_compile() {
-    scons_src_compile
-    SCONS_SRC_COMPILE_PARAMS+=( d8 )
-    scons_src_compile
+    emake \
+        V=1 \
+        werror=no \
+        "library=shared" \
+        $(v8_platform).release
 }
 
 v8_src_install() {
     insinto /usr
     doins -r include
+
+    pushd "${WORK}/out/$(v8_platform).release"
+
+    pushd "lib.target"
     dolib libv8.so
-    dolib libv8preparser.so
+    popd
+
     dobin d8
+    popd
 
     emagicdocs
 
@@ -38,10 +63,10 @@ v8_src_install() {
 }
 
 v8_src_test() {
-    LD_LIBRARY_PATH="." edo tools/test.py \
-        -j ${EXJOBS:-1} \
-        --arch=x64 \
-        --progress=verbose \
-        --shell="${WORK}/d8" \
-        -S "library=shared"
+    emake \
+        V=1 \
+        werror=no \
+        "library=shared" \
+        TESTFLAGS="--no-presubmit" \
+        $(v8_platform).release.check
 }

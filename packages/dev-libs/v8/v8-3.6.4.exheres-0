@@ -3,7 +3,14 @@
 
 SCM_TAG=${PV}
 
-require v8
+require v8 [ gyp_revision=1026 ]
 
 SLOT="0"
 PLATFORMS="~amd64"
+
+src_prepare() {
+    default
+
+    edo sed -i -e '/cflags/s/-Werror//' build/common.gypi build/standalone.gypi
+    edo sed -i -e '/GCC_TREAT_WARNINGS_AS_ERRORS/s/YES/NO/' build/standalone.gypi
+}
