@@ -3,7 +3,7 @@
 
 SCM_TAG=${PV}
 
-require v8 [ gyp_revision=1282 ]
+require v8 [ gyp_revision=1501 ]
 
 SLOT="0"
 PLATFORMS="~amd64"

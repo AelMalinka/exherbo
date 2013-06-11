@@ -37,7 +37,7 @@ v8_platform() {
 }
 
 v8_src_compile() {
-    emake \
+    LD="${CXX}" emake \
         V=1 \
         werror=no \
         "library=shared" \
