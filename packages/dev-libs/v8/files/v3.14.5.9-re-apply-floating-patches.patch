@@ -1,0 +1,290 @@
+From e2385839d7bde937334e34da082293cae877fe2f Mon Sep 17 00:00:00 2001
+From: Timothy J Fontaine <tjfontaine@gmail.com>
+Date: Thu, 23 May 2013 13:40:40 -0700
+Subject: [PATCH] v8: re-apply floating patches
+
+---
+ deps/v8/build/common.gypi                | 11 +----------
+ deps/v8/src/json-parser.h                |  7 +++++--
+ deps/v8/src/objects-inl.h                |  3 ++-
+ deps/v8/src/objects.h                    |  7 +++++--
+ deps/v8/src/parser.cc                    |  4 ++--
+ deps/v8/src/parser.h                     |  5 -----
+ deps/v8/src/platform-posix.cc            | 17 ++++++++++++++++-
+ deps/v8/src/stub-cache.cc                |  8 ++++----
+ deps/v8/src/v8utils.h                    |  2 ++
+ deps/v8/tools/gen-postmortem-metadata.py | 15 +++++++++++----
+ 10 files changed, 48 insertions(+), 31 deletions(-)
+
+diff --git a/build/common.gypi b/build/common.gypi
+index 78888b8..6e0ef0c 100644
+--- a/build/common.gypi
++++ b/build/common.gypi
+@@ -157,7 +157,7 @@
+           [ 'v8_use_arm_eabi_hardfloat=="true"', {
+             'defines': [
+               'USE_EABI_HARDFLOAT=1',
+-              'CAN_USE_VFP3_INSTRUCTIONS',
++              'CAN_USE_VFP2_INSTRUCTIONS',
+             ],
+             'target_conditions': [
+               ['_toolset=="target"', {
+@@ -378,15 +378,6 @@
+         'conditions': [
+           ['OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="netbsd" \
+             or OS=="android"', {
+-            'cflags!': [
+-              '-O2',
+-              '-Os',
+-            ],
+-            'cflags': [
+-              '-fdata-sections',
+-              '-ffunction-sections',
+-              '-O3',
+-            ],
+             'conditions': [
+               [ 'gcc_version==44 and clang==0', {
+                 'cflags': [
+diff --git a/src/json-parser.h b/src/json-parser.h
+index 03ed22d..ebe3db1 100644
+--- a/src/json-parser.h
++++ b/src/json-parser.h
+@@ -287,6 +287,7 @@ Handle<Object> JsonParser<seq_ascii>::ParseJsonValue() {
+ // Parse a JSON object. Position must be right at '{'.
+ template <bool seq_ascii>
+ Handle<Object> JsonParser<seq_ascii>::ParseJsonObject() {
++  HandleScope scope;
+   Handle<Object> prototype;
+   Handle<JSObject> json_object =
+       factory()->NewJSObject(object_constructor());
+@@ -360,12 +361,13 @@ Handle<Object> JsonParser<seq_ascii>::ParseJsonObject() {
+     if (!prototype.is_null()) SetPrototype(json_object, prototype);
+   }
+   AdvanceSkipWhitespace();
+-  return json_object;
++  return scope.CloseAndEscape(json_object);
+ }
+ 
+ // Parse a JSON array. Position must be right at '['.
+ template <bool seq_ascii>
+ Handle<Object> JsonParser<seq_ascii>::ParseJsonArray() {
++  HandleScope scope;
+   ZoneScope zone_scope(zone(), DELETE_ON_EXIT);
+   ZoneList<Handle<Object> > elements(4, zone());
+   ASSERT_EQ(c0_, '[');
+@@ -388,7 +390,8 @@ Handle<Object> JsonParser<seq_ascii>::ParseJsonArray() {
+   for (int i = 0, n = elements.length(); i < n; i++) {
+     fast_elements->set(i, *elements[i]);
+   }
+-  return factory()->NewJSArrayWithElements(fast_elements);
++  Handle<Object> json_array = factory()->NewJSArrayWithElements(fast_elements);
++  return scope.CloseAndEscape(json_array);
+ }
+ 
+ 
+diff --git a/src/objects-inl.h b/src/objects-inl.h
+index ea5a93f..4834fa6 100644
+--- a/src/objects-inl.h
++++ b/src/objects-inl.h
+@@ -3500,8 +3500,9 @@ Code::Flags Code::ComputeFlags(Kind kind,
+          kind == CALL_IC ||
+          kind == STORE_IC ||
+          kind == KEYED_STORE_IC);
++  ASSERT(argc <= Code::kMaxArguments);
+   // Compute the bit mask.
+-  int bits = KindField::encode(kind)
++  unsigned int bits = KindField::encode(kind)
+       | ICStateField::encode(ic_state)
+       | TypeField::encode(type)
+       | ExtraICStateField::encode(extra_ic_state)
+diff --git a/src/objects.h b/src/objects.h
+index 755dd42..47d7757 100644
+--- a/src/objects.h
++++ b/src/objects.h
+@@ -4180,8 +4180,8 @@ class Code: public HeapObject {
+   // FLAGS_MIN_VALUE and FLAGS_MAX_VALUE are specified to ensure that
+   // enumeration type has correct value range (see Issue 830 for more details).
+   enum Flags {
+-    FLAGS_MIN_VALUE = kMinInt,
+-    FLAGS_MAX_VALUE = kMaxInt
++    FLAGS_MIN_VALUE = 0,
++    FLAGS_MAX_VALUE = kMaxUInt32
+   };
+ 
+ #define CODE_KIND_LIST(V) \
+@@ -4644,6 +4644,9 @@ class Code: public HeapObject {
+   // Signed field cannot be encoded using the BitField class.
+   static const int kArgumentsCountShift = 14;
+   static const int kArgumentsCountMask = ~((1 << kArgumentsCountShift) - 1);
++  static const int kArgumentsBits =
++      PlatformSmiTagging::kSmiValueSize - Code::kArgumentsCountShift + 1;
++  static const int kMaxArguments = (1 << kArgumentsBits) - 1;
+ 
+   // This constant should be encodable in an ARM instruction.
+   static const int kFlagsNotUsedInLookup =
+diff --git a/src/parser.cc b/src/parser.cc
+index 03e4b03..6da414a 100644
+--- a/src/parser.cc
++++ b/src/parser.cc
+@@ -4243,7 +4243,7 @@ ZoneList<Expression*>* Parser::ParseArguments(bool* ok) {
+   while (!done) {
+     Expression* argument = ParseAssignmentExpression(true, CHECK_OK);
+     result->Add(argument, zone());
+-    if (result->length() > kMaxNumFunctionParameters) {
++    if (result->length() > Code::kMaxArguments) {
+       ReportMessageAt(scanner().location(), "too_many_arguments",
+                       Vector<const char*>::empty());
+       *ok = false;
+@@ -4420,7 +4420,7 @@ FunctionLiteral* Parser::ParseFunctionLiteral(Handle<String> function_name,
+ 
+       top_scope_->DeclareParameter(param_name, VAR);
+       num_parameters++;
+-      if (num_parameters > kMaxNumFunctionParameters) {
++      if (num_parameters > Code::kMaxArguments) {
+         ReportMessageAt(scanner().location(), "too_many_parameters",
+                         Vector<const char*>::empty());
+         *ok = false;
+diff --git a/src/parser.h b/src/parser.h
+index 93fd1b8..e36a9b3 100644
+--- a/src/parser.h
++++ b/src/parser.h
+@@ -449,11 +449,6 @@ class Parser {
+                        Vector<Handle<String> > args);
+ 
+  private:
+-  // Limit on number of function parameters is chosen arbitrarily.
+-  // Code::Flags uses only the low 17 bits of num-parameters to
+-  // construct a hashable id, so if more than 2^17 are allowed, this
+-  // should be checked.
+-  static const int kMaxNumFunctionParameters = 32766;
+   static const int kMaxNumFunctionLocals = 131071;  // 2^17-1
+ 
+   enum Mode {
+diff --git a/src/platform-posix.cc b/src/platform-posix.cc
+index 3bc8373..ad74eba 100644
+--- a/src/platform-posix.cc
++++ b/src/platform-posix.cc
+@@ -109,11 +109,26 @@ void* OS::GetRandomMmapAddr() {
+     raw_addr &= V8_UINT64_C(0x3ffffffff000);
+ #else
+     uint32_t raw_addr = V8::RandomPrivate(isolate);
++
++    raw_addr &= 0x3ffff000;
++
++# ifdef __sun
++    // For our Solaris/illumos mmap hint, we pick a random address in the bottom
++    // half of the top half of the address space (that is, the third quarter).
++    // Because we do not MAP_FIXED, this will be treated only as a hint -- the
++    // system will not fail to mmap() because something else happens to already
++    // be mapped at our random address. We deliberately set the hint high enough
++    // to get well above the system's break (that is, the heap); Solaris and
++    // illumos will try the hint and if that fails allocate as if there were
++    // no hint at all. The high hint prevents the break from getting hemmed in
++    // at low values, ceding half of the address space to the system heap.
++    raw_addr += 0x80000000;
++# else
+     // The range 0x20000000 - 0x60000000 is relatively unpopulated across a
+     // variety of ASLR modes (PAE kernel, NX compat mode, etc) and on macos
+     // 10.6 and 10.7.
+-    raw_addr &= 0x3ffff000;
+     raw_addr += 0x20000000;
++# endif
+ #endif
+     return reinterpret_cast<void*>(raw_addr);
+   }
+diff --git a/src/stub-cache.cc b/src/stub-cache.cc
+index 4119147..8490c7e 100644
+--- a/src/stub-cache.cc
++++ b/src/stub-cache.cc
+@@ -617,7 +617,7 @@ Handle<Code> StubCache::ComputeCallConstant(int argc,
+   Handle<Code> code =
+       compiler.CompileCallConstant(object, holder, function, name, check);
+   code->set_check_type(check);
+-  ASSERT_EQ(flags, code->flags());
++  ASSERT(flags == code->flags());
+   PROFILE(isolate_,
+           CodeCreateEvent(CALL_LOGGER_TAG(kind, CALL_IC_TAG), *code, *name));
+   GDBJIT(AddCode(GDBJITInterface::CALL_IC, *name, *code));
+@@ -655,7 +655,7 @@ Handle<Code> StubCache::ComputeCallField(int argc,
+   Handle<Code> code =
+       compiler.CompileCallField(Handle<JSObject>::cast(object),
+                                 holder, index, name);
+-  ASSERT_EQ(flags, code->flags());
++  ASSERT(flags == code->flags());
+   PROFILE(isolate_,
+           CodeCreateEvent(CALL_LOGGER_TAG(kind, CALL_IC_TAG), *code, *name));
+   GDBJIT(AddCode(GDBJITInterface::CALL_IC, *name, *code));
+@@ -692,7 +692,7 @@ Handle<Code> StubCache::ComputeCallInterceptor(int argc,
+   Handle<Code> code =
+       compiler.CompileCallInterceptor(Handle<JSObject>::cast(object),
+                                       holder, name);
+-  ASSERT_EQ(flags, code->flags());
++  ASSERT(flags == code->flags());
+   PROFILE(isolate(),
+           CodeCreateEvent(CALL_LOGGER_TAG(kind, CALL_IC_TAG), *code, *name));
+   GDBJIT(AddCode(GDBJITInterface::CALL_IC, *name, *code));
+@@ -721,7 +721,7 @@ Handle<Code> StubCache::ComputeCallGlobal(int argc,
+   CallStubCompiler compiler(isolate(), argc, kind, extra_state, cache_holder);
+   Handle<Code> code =
+       compiler.CompileCallGlobal(receiver, holder, cell, function, name);
+-  ASSERT_EQ(flags, code->flags());
++  ASSERT(flags == code->flags());
+   PROFILE(isolate(),
+           CodeCreateEvent(CALL_LOGGER_TAG(kind, CALL_IC_TAG), *code, *name));
+   GDBJIT(AddCode(GDBJITInterface::CALL_IC, *name, *code));
+diff --git a/src/v8utils.h b/src/v8utils.h
+index 9072b4e..111abdf 100644
+--- a/src/v8utils.h
++++ b/src/v8utils.h
+@@ -209,6 +209,8 @@ INLINE(void CopyChars(sinkchar* dest, const sourcechar* src, int chars));
+ 
+ template <typename sourcechar, typename sinkchar>
+ void CopyChars(sinkchar* dest, const sourcechar* src, int chars) {
++  ASSERT(chars >= 0);
++  if (chars == 0) return;
+   sinkchar* limit = dest + chars;
+ #ifdef V8_HOST_CAN_READ_UNALIGNED
+   if (sizeof(*dest) == sizeof(*src)) {
+diff --git a/tools/gen-postmortem-metadata.py b/tools/gen-postmortem-metadata.py
+index f59cfd3..7bee763 100644
+--- a/tools/gen-postmortem-metadata.py
++++ b/tools/gen-postmortem-metadata.py
+@@ -76,16 +76,23 @@ consts_misc = [
+     { 'name': 'SmiTag',                 'value': 'kSmiTag' },
+     { 'name': 'SmiTagMask',             'value': 'kSmiTagMask' },
+     { 'name': 'SmiValueShift',          'value': 'kSmiTagSize' },
++    { 'name': 'SmiShiftSize',           'value': 'kSmiShiftSize' },
+     { 'name': 'PointerSizeLog2',        'value': 'kPointerSizeLog2' },
+ 
+-    { 'name': 'prop_idx_transitions',
+-        'value': 'DescriptorArray::kTransitionsIndex' },
++    { 'name': 'prop_desc_key',
++        'value': 'DescriptorArray::kDescriptorKey' },
++    { 'name': 'prop_desc_details',
++        'value': 'DescriptorArray::kDescriptorDetails' },
++    { 'name': 'prop_desc_value',
++        'value': 'DescriptorArray::kDescriptorValue' },
++    { 'name': 'prop_desc_size',
++        'value': 'DescriptorArray::kDescriptorSize' },
+     { 'name': 'prop_idx_first',
+         'value': 'DescriptorArray::kFirstIndex' },
+     { 'name': 'prop_type_field',
+         'value': 'FIELD' },
+     { 'name': 'prop_type_first_phantom',
+-        'value': 'MAP_TRANSITION' },
++        'value': 'Code::MAP_TRANSITION' },
+     { 'name': 'prop_type_mask',
+         'value': 'PropertyDetails::TypeField::kMask' },
+ 
+@@ -107,7 +114,7 @@ extras_accessors = [
+     'JSObject, elements, Object, kElementsOffset',
+     'FixedArray, data, uintptr_t, kHeaderSize',
+     'Map, instance_attributes, int, kInstanceAttributesOffset',
+-    'Map, instance_descriptors, int, kInstanceDescriptorsOrBitField3Offset',
++    'Map, transitions, uintptr_t, kTransitionsOrBackPointerOffset',
+     'Map, inobject_properties, int, kInObjectPropertiesOffset',
+     'Map, instance_size, int, kInstanceSizeOffset',
+     'HeapNumber, value, double, kValueOffset',
+-- 
+1.8.4
+

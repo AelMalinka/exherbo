@@ -3,7 +3,10 @@
 
 SCM_TAG=${PV}
 
-require v8 [ gyp_revision=1501 ]
+require v8 [ gyp_revision=1723 ]
 
 SLOT="0"
 PLATFORMS="~amd64"
+
+DEFAULT_SRC_PREPARE_PATCHES=( "${FILES}"/v${PV}-*.patch )
+

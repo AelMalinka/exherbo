@@ -1,0 +1,814 @@
+From 41fc46e52ff8c0465800a35af1d1bda275e5d192 Mon Sep 17 00:00:00 2001
+From: Ben Noordhuis <info@bnoordhuis.nl>
+Date: Mon, 3 Dec 2012 20:29:29 +0000
+Subject: [PATCH] v8: add setVariableValue debugger command
+
+Issue 2399 part 1: In debugger allow modifying local variable values
+Issue 2399 part 2: In debugger allow modifying local variable values
+
+Review URL: https://codereview.chromium.org/11415042
+Review URL: https://codereview.chromium.org/11412310
+
+This is a back-port of upstream svn commits r13122 and r13202.
+---
+ deps/v8/src/debug-debugger.js                    | 100 +++++++-
+ deps/v8/src/frames.cc                            |   5 +
+ deps/v8/src/frames.h                             |   3 +
+ deps/v8/src/mirror-debugger.js                   |  25 ++
+ deps/v8/src/runtime.cc                           | 211 +++++++++++++++++
+ deps/v8/src/runtime.h                            |   1 +
+ deps/v8/test/mjsunit/debug-set-variable-value.js | 276 +++++++++++++++++++++++
+ 7 files changed, 610 insertions(+), 11 deletions(-)
+ create mode 100644 deps/v8/test/mjsunit/debug-set-variable-value.js
+
+diff --git a/src/debug-debugger.js b/src/debug-debugger.js
+index 163a0bd..dfad902 100644
+--- a/src/debug-debugger.js
++++ b/src/debug-debugger.js
+@@ -1427,6 +1427,8 @@ DebugCommandProcessor.prototype.processDebugJSONRequest = function(
+         this.scopesRequest_(request, response);
+       } else if (request.command == 'scope') {
+         this.scopeRequest_(request, response);
++      } else if (request.command == 'setVariableValue') {
++        this.setVariableValueRequest_(request, response);
+       } else if (request.command == 'evaluate') {
+         this.evaluateRequest_(request, response);
+       } else if (lol_is_enabled && request.command == 'getobj') {
+@@ -1953,11 +1955,12 @@ DebugCommandProcessor.prototype.frameRequest_ = function(request, response) {
+ };
+ 
+ 
+-DebugCommandProcessor.prototype.frameForScopeRequest_ = function(request) {
++DebugCommandProcessor.prototype.resolveFrameFromScopeDescription_ =
++    function(scope_description) {
+   // Get the frame for which the scope or scopes are requested.
+   // With no frameNumber argument use the currently selected frame.
+-  if (request.arguments && !IS_UNDEFINED(request.arguments.frameNumber)) {
+-    frame_index = request.arguments.frameNumber;
++  if (scope_description && !IS_UNDEFINED(scope_description.frameNumber)) {
++    frame_index = scope_description.frameNumber;
+     if (frame_index < 0 || this.exec_state_.frameCount() <= frame_index) {
+       throw new Error('Invalid frame number');
+     }
+@@ -1971,13 +1974,13 @@ DebugCommandProcessor.prototype.frameForScopeRequest_ = function(request) {
+ // Gets scope host object from request. It is either a function
+ // ('functionHandle' argument must be specified) or a stack frame
+ // ('frameNumber' may be specified and the current frame is taken by default).
+-DebugCommandProcessor.prototype.scopeHolderForScopeRequest_ =
+-    function(request) {
+-  if (request.arguments && "functionHandle" in request.arguments) {
+-    if (!IS_NUMBER(request.arguments.functionHandle)) {
++DebugCommandProcessor.prototype.resolveScopeHolder_ =
++    function(scope_description) {
++  if (scope_description && "functionHandle" in scope_description) {
++    if (!IS_NUMBER(scope_description.functionHandle)) {
+       throw new Error('Function handle must be a number');
+     }
+-    var function_mirror = LookupMirror(request.arguments.functionHandle);
++    var function_mirror = LookupMirror(scope_description.functionHandle);
+     if (!function_mirror) {
+       throw new Error('Failed to find function object by handle');
+     }
+@@ -1992,14 +1995,14 @@ DebugCommandProcessor.prototype.scopeHolderForScopeRequest_ =
+     }
+ 
+     // Get the frame for which the scopes are requested.
+-    var frame = this.frameForScopeRequest_(request);
++    var frame = this.resolveFrameFromScopeDescription_(scope_description);
+     return frame;
+   }
+ }
+ 
+ 
+ DebugCommandProcessor.prototype.scopesRequest_ = function(request, response) {
+-  var scope_holder = this.scopeHolderForScopeRequest_(request);
++  var scope_holder = this.resolveScopeHolder_(request.arguments);
+ 
+   // Fill all scopes for this frame or function.
+   var total_scopes = scope_holder.scopeCount();
+@@ -2018,7 +2021,7 @@ DebugCommandProcessor.prototype.scopesRequest_ = function(request, response) {
+ 
+ DebugCommandProcessor.prototype.scopeRequest_ = function(request, response) {
+   // Get the frame or function for which the scope is requested.
+-  var scope_holder = this.scopeHolderForScopeRequest_(request);
++  var scope_holder = this.resolveScopeHolder_(request.arguments);
+ 
+   // With no scope argument just return top scope.
+   var scope_index = 0;
+@@ -2033,6 +2036,77 @@ DebugCommandProcessor.prototype.scopeRequest_ = function(request, response) {
+ };
+ 
+ 
++// Reads value from protocol description. Description may be in form of type
++// (for singletons), raw value (primitive types supported in JSON),
++// string value description plus type (for primitive values) or handle id.
++// Returns raw value or throws exception.
++DebugCommandProcessor.resolveValue_ = function(value_description) {
++  if ("handle" in value_description) {
++    var value_mirror = LookupMirror(value_description.handle);
++    if (!value_mirror) {
++      throw new Error("Failed to resolve value by handle, ' #" +
++          mapping.handle + "# not found");
++    }
++    return value_mirror.value();
++  } else if ("stringDescription" in value_description) {
++    if (value_description.type == BOOLEAN_TYPE) {
++      return Boolean(value_description.stringDescription);
++    } else if (value_description.type == NUMBER_TYPE) {
++      return Number(value_description.stringDescription);
++    } if (value_description.type == STRING_TYPE) {
++      return String(value_description.stringDescription);
++    } else {
++      throw new Error("Unknown type");
++    }
++  } else if ("value" in value_description) {
++    return value_description.value;
++  } else if (value_description.type == UNDEFINED_TYPE) {
++    return void 0;
++  } else if (value_description.type == NULL_TYPE) {
++    return null;
++  } else {
++    throw new Error("Failed to parse value description");
++  }
++};
++
++
++DebugCommandProcessor.prototype.setVariableValueRequest_ =
++    function(request, response) {
++  if (!request.arguments) {
++    response.failed('Missing arguments');
++    return;
++  }
++
++  if (IS_UNDEFINED(request.arguments.name)) {
++    response.failed('Missing variable name');
++  }
++  var variable_name = request.arguments.name;
++
++  var scope_description = request.arguments.scope;
++
++  // Get the frame or function for which the scope is requested.
++  var scope_holder = this.resolveScopeHolder_(scope_description);
++
++  if (IS_UNDEFINED(scope_description.number)) {
++    response.failed('Missing scope number');
++  }
++  var scope_index = %ToNumber(scope_description.number);
++
++  var scope = scope_holder.scope(scope_index);
++
++  var new_value =
++      DebugCommandProcessor.resolveValue_(request.arguments.newValue);
++
++  scope.setVariableValue(variable_name, new_value);
++
++  var new_value_mirror = MakeMirror(new_value);
++
++  response.body = {
++    newValue: new_value_mirror
++  };
++};
++
++
+ DebugCommandProcessor.prototype.evaluateRequest_ = function(request, response) {
+   if (!request.arguments) {
+     return response.failed('Missing arguments');
+@@ -2663,3 +2737,7 @@ function ValueToProtocolValue_(value, mirror_serializer) {
+   }
+   return json;
+ }
++
++Debug.TestApi = {
++  CommandProcessorResolveValue: DebugCommandProcessor.resolveValue_
++};
+diff --git a/src/frames.cc b/src/frames.cc
+index 18dc541..8af92b9 100644
+--- a/src/frames.cc
++++ b/src/frames.cc
+@@ -692,6 +692,11 @@ void OptimizedFrame::Iterate(ObjectVisitor* v) const {
+ }
+ 
+ 
++void JavaScriptFrame::SetParameterValue(int index, Object* value) const {
++  Memory::Object_at(GetParameterSlot(index)) = value;
++}
++
++
+ bool JavaScriptFrame::IsConstructor() const {
+   Address fp = caller_fp();
+   if (has_adapted_arguments()) {
+diff --git a/src/frames.h b/src/frames.h
+index 30f7e1f..6f803c0 100644
+--- a/src/frames.h
++++ b/src/frames.h
+@@ -500,6 +500,9 @@ class JavaScriptFrame: public StandardFrame {
+     return GetNumberOfIncomingArguments();
+   }
+ 
++  // Debugger access.
++  void SetParameterValue(int index, Object* value) const;
++
+   // Check if this frame is a constructor frame invoked through 'new'.
+   bool IsConstructor() const;
+ 
+diff --git a/src/mirror-debugger.js b/src/mirror-debugger.js
+index a5331a0..7f1a05a 100644
+--- a/src/mirror-debugger.js
++++ b/src/mirror-debugger.js
+@@ -1844,10 +1844,14 @@ function ScopeDetails(frame, fun, index) {
+                                      frame.details_.frameId(),
+                                      frame.details_.inlinedFrameIndex(),
+                                      index);
++    this.frame_id_ = frame.details_.frameId();
++    this.inlined_frame_id_ = frame.details_.inlinedFrameIndex();
+   } else {
+     this.details_ = %GetFunctionScopeDetails(fun.value(), index);
++    this.fun_value_ = fun.value();
+     this.break_id_ = undefined;
+   }
++  this.index_ = index;
+ }
+ 
+ 
+@@ -1867,6 +1871,22 @@ ScopeDetails.prototype.object = function() {
+ };
+ 
+ 
++ScopeDetails.prototype.setVariableValueImpl = function(name, new_value) {
++  var raw_res;
++  if (!IS_UNDEFINED(this.break_id_)) {
++    %CheckExecutionState(this.break_id_);
++    raw_res = %SetScopeVariableValue(this.break_id_, this.frame_id_,
++        this.inlined_frame_id_, this.index_, name, new_value);
++  } else {
++    raw_res = %SetScopeVariableValue(this.fun_value_, null, null, this.index_,
++        name, new_value);
++  }
++  if (!raw_res) {
++    throw new Error("Failed to set variable value");
++  }
++};
++
++
+ /**
+  * Mirror object for scope of frame or function. Either frame or function must
+  * be specified.
+@@ -1914,6 +1934,11 @@ ScopeMirror.prototype.scopeObject = function() {
+ };
+ 
+ 
++ScopeMirror.prototype.setVariableValue = function(name, new_value) {
++  this.details_.setVariableValueImpl(name, new_value);
++};
++
++
+ /**
+  * Mirror object for script source.
+  * @param {Script} script The script object
+diff --git a/src/runtime.cc b/src/runtime.cc
+index 19d9a3f..052d023 100644
+--- a/src/runtime.cc
++++ b/src/runtime.cc
+@@ -10703,6 +10703,87 @@ static Handle<JSObject> MaterializeLocalScope(
+ }
+ 
+ 
++// Set the context local variable value.
++static bool SetContextLocalValue(Isolate* isolate,
++                                 Handle<ScopeInfo> scope_info,
++                                 Handle<Context> context,
++                                 Handle<String> variable_name,
++                                 Handle<Object> new_value) {
++  for (int i = 0; i < scope_info->ContextLocalCount(); i++) {
++    Handle<String> next_name(scope_info->ContextLocalName(i));
++    if (variable_name->Equals(*next_name)) {
++      VariableMode mode;
++      InitializationFlag init_flag;
++      int context_index =
++          scope_info->ContextSlotIndex(*next_name, &mode, &init_flag);
++      context->set(context_index, *new_value);
++      return true;
++    }
++  }
++
++  return false;
++}
++
++
++static bool SetLocalVariableValue(Isolate* isolate,
++                                  JavaScriptFrame* frame,
++                                  int inlined_jsframe_index,
++                                  Handle<String> variable_name,
++                                  Handle<Object> new_value) {
++  if (inlined_jsframe_index != 0 || frame->is_optimized()) {
++    // Optimized frames are not supported.
++    return false;
++  }
++
++  Handle<JSFunction> function(JSFunction::cast(frame->function()));
++  Handle<SharedFunctionInfo> shared(function->shared());
++  Handle<ScopeInfo> scope_info(shared->scope_info());
++
++  // Parameters.
++  for (int i = 0; i < scope_info->ParameterCount(); ++i) {
++    if (scope_info->ParameterName(i)->Equals(*variable_name)) {
++      frame->SetParameterValue(i, *new_value);
++      return true;
++    }
++  }
++
++  // Stack locals.
++  for (int i = 0; i < scope_info->StackLocalCount(); ++i) {
++    if (scope_info->StackLocalName(i)->Equals(*variable_name)) {
++      frame->SetExpression(i, *new_value);
++      return true;
++    }
++  }
++
++  if (scope_info->HasContext()) {
++    // Context locals.
++    Handle<Context> frame_context(Context::cast(frame->context()));
++    Handle<Context> function_context(frame_context->declaration_context());
++    if (SetContextLocalValue(
++        isolate, scope_info, function_context, variable_name, new_value)) {
++      return true;
++    }
++
++    // Function context extension. These are variables introduced by eval.
++    if (function_context->closure() == *function) {
++      if (function_context->has_extension() &&
++          !function_context->IsNativeContext()) {
++        Handle<JSObject> ext(JSObject::cast(function_context->extension()));
++
++        if (ext->HasProperty(*variable_name)) {
++          // We don't expect this to do anything except replacing
++          // property value.
++          SetProperty(ext, variable_name, new_value, NONE, kNonStrictMode);
++          return true;
++        }
++      }
++    }
++  }
++
++  return false;
++}
++
++
+ // Create a plain JSObject which materializes the closure content for the
+ // context.
+ static Handle<JSObject> MaterializeClosure(Isolate* isolate,
+@@ -10751,6 +10832,37 @@ static Handle<JSObject> MaterializeClosure(Isolate* isolate,
+ }
+ 
+ 
++// This method copies structure of MaterializeClosure method above.
++static bool SetClosureVariableValue(Isolate* isolate,
++                                    Handle<Context> context,
++                                    Handle<String> variable_name,
++                                    Handle<Object> new_value) {
++  ASSERT(context->IsFunctionContext());
++
++  Handle<SharedFunctionInfo> shared(context->closure()->shared());
++  Handle<ScopeInfo> scope_info(shared->scope_info());
++
++  // Context locals to the context extension.
++  if (SetContextLocalValue(
++          isolate, scope_info, context, variable_name, new_value)) {
++    return true;
++  }
++
++  // Properties from the function context extension. This will
++  // be variables introduced by eval.
++  if (context->has_extension()) {
++    Handle<JSObject> ext(JSObject::cast(context->extension()));
++    if (ext->HasProperty(*variable_name)) {
++      // We don't expect this to do anything except replacing property value.
++      SetProperty(ext, variable_name, new_value, NONE, kNonStrictMode);
++      return true;
++    }
++  }
++
++  return false;
++}
++
++
+ // Create a plain JSObject which materializes the scope for the specified
+ // catch context.
+ static Handle<JSObject> MaterializeCatchScope(Isolate* isolate,
+@@ -10768,6 +10880,20 @@ static Handle<JSObject> MaterializeCatchScope(Isolate* isolate,
+ }
+ 
+ 
++static bool SetCatchVariableValue(Isolate* isolate,
++                                  Handle<Context> context,
++                                  Handle<String> variable_name,
++                                  Handle<Object> new_value) {
++  ASSERT(context->IsCatchContext());
++  Handle<String> name(String::cast(context->extension()));
++  if (!name->Equals(*variable_name)) {
++    return false;
++  }
++  context->set(Context::THROWN_OBJECT_INDEX, *new_value);
++  return true;
++}
++
++
+ // Create a plain JSObject which materializes the block scope for the specified
+ // block context.
+ static Handle<JSObject> MaterializeBlockScope(
+@@ -11026,6 +11152,33 @@ class ScopeIterator {
+     return Handle<JSObject>();
+   }
+ 
++  bool SetVariableValue(Handle<String> variable_name,
++                        Handle<Object> new_value) {
++    ASSERT(!failed_);
++    switch (Type()) {
++      case ScopeIterator::ScopeTypeGlobal:
++        break;
++      case ScopeIterator::ScopeTypeLocal:
++        return SetLocalVariableValue(isolate_, frame_, inlined_jsframe_index_,
++            variable_name, new_value);
++      case ScopeIterator::ScopeTypeWith:
++        break;
++      case ScopeIterator::ScopeTypeCatch:
++        return SetCatchVariableValue(isolate_, CurrentContext(),
++            variable_name, new_value);
++      case ScopeIterator::ScopeTypeClosure:
++        return SetClosureVariableValue(isolate_, CurrentContext(),
++            variable_name, new_value);
++      case ScopeIterator::ScopeTypeBlock:
++        // TODO(2399): should we implement it?
++        break;
++      case ScopeIterator::ScopeTypeModule:
++        // TODO(2399): should we implement it?
++        break;
++    }
++    return false;
++  }
++
+   Handle<ScopeInfo> CurrentScopeInfo() {
+     ASSERT(!failed_);
+     if (!nested_scope_chain_.is_empty()) {
+@@ -11265,6 +11418,64 @@ RUNTIME_FUNCTION(MaybeObject*, Runtime_GetFunctionScopeDetails) {
+ }
+ 
+ 
++static bool SetScopeVariableValue(ScopeIterator* it, int index,
++                                  Handle<String> variable_name,
++                                  Handle<Object> new_value) {
++  for (int n = 0; !it->Done() && n < index; it->Next()) {
++    n++;
++  }
++  if (it->Done()) {
++    return false;
++  }
++  return it->SetVariableValue(variable_name, new_value);
++}
++
++
++// Change variable value in closure or local scope
++// args[0]: number or JsFunction: break id or function
++// args[1]: number: frame index (when arg[0] is break id)
++// args[2]: number: inlined frame index (when arg[0] is break id)
++// args[3]: number: scope index
++// args[4]: string: variable name
++// args[5]: object: new value
++//
++// Return true if success and false otherwise
++RUNTIME_FUNCTION(MaybeObject*, Runtime_SetScopeVariableValue) {
++  HandleScope scope(isolate);
++  ASSERT(args.length() == 6);
++
++  // Check arguments.
++  CONVERT_NUMBER_CHECKED(int, index, Int32, args[3]);
++  CONVERT_ARG_HANDLE_CHECKED(String, variable_name, 4);
++  Handle<Object> new_value = args.at<Object>(5);
++
++  bool res;
++  if (args[0]->IsNumber()) {
++    Object* check;
++    { MaybeObject* maybe_check = Runtime_CheckExecutionState(
++        RUNTIME_ARGUMENTS(isolate, args));
++      if (!maybe_check->ToObject(&check)) return maybe_check;
++    }
++    CONVERT_SMI_ARG_CHECKED(wrapped_id, 1);
++    CONVERT_NUMBER_CHECKED(int, inlined_jsframe_index, Int32, args[2]);
++
++    // Get the frame where the debugging is performed.
++    StackFrame::Id id = UnwrapFrameId(wrapped_id);
++    JavaScriptFrameIterator frame_it(isolate, id);
++    JavaScriptFrame* frame = frame_it.frame();
++
++    ScopeIterator it(isolate, frame, inlined_jsframe_index);
++    res = SetScopeVariableValue(&it, index, variable_name, new_value);
++  } else {
++    CONVERT_ARG_HANDLE_CHECKED(JSFunction, fun, 0);
++    ScopeIterator it(isolate, fun);
++    res = SetScopeVariableValue(&it, index, variable_name, new_value);
++  }
++
++  return isolate->heap()->ToBoolean(res);
++}
++
++
+ RUNTIME_FUNCTION(MaybeObject*, Runtime_DebugPrintScopes) {
+   HandleScope scope(isolate);
+   ASSERT(args.length() == 0);
+diff --git a/src/runtime.h b/src/runtime.h
+index c9939d0..47745b3 100644
+--- a/src/runtime.h
++++ b/src/runtime.h
+@@ -418,6 +418,7 @@ namespace internal {
+   F(GetScopeDetails, 4, 1) \
+   F(GetFunctionScopeCount, 1, 1) \
+   F(GetFunctionScopeDetails, 2, 1) \
++  F(SetScopeVariableValue, 6, 1) \
+   F(DebugPrintScopes, 0, 1) \
+   F(GetThreadCount, 1, 1) \
+   F(GetThreadDetails, 2, 1) \
+diff --git a/test/mjsunit/debug-set-variable-value.js b/test/mjsunit/debug-set-variable-value.js
+new file mode 100644
+index 0000000..7b6a98b
+--- /dev/null
++++ b/test/mjsunit/debug-set-variable-value.js
+@@ -0,0 +1,276 @@
++// Copyright 2012 the V8 project authors. All rights reserved.
++// Redistribution and use in source and binary forms, with or without
++// modification, are permitted provided that the following conditions are
++// met:
++//
++//     * Redistributions of source code must retain the above copyright
++//       notice, this list of conditions and the following disclaimer.
++//     * Redistributions in binary form must reproduce the above
++//       copyright notice, this list of conditions and the following
++//       disclaimer in the documentation and/or other materials provided
++//       with the distribution.
++//     * Neither the name of Google Inc. nor the names of its
++//       contributors may be used to endorse or promote products derived
++//       from this software without specific prior written permission.
++//
++// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++// Flags: --expose-debug-as debug
++
++// Get the Debug object exposed from the debug context global object.
++var Debug = debug.Debug;
++
++// Accepts a function/closure 'fun' that must have a debugger statement inside.
++// A variable 'variable_name' must be initialized before debugger statement
++// and returned after the statement. The test will alter variable value when
++// on debugger statement and check that returned value reflects the change.
++function RunPauseTest(scope_number, expected_old_result, variable_name,
++    new_value, expected_new_result, fun) {
++  var actual_old_result = fun();
++  assertEquals(expected_old_result, actual_old_result);
++
++  var listener_delegate;
++  var listener_called = false;
++  var exception = null;
++
++  function listener_delegate(exec_state) {
++    var scope = exec_state.frame(0).scope(scope_number);
++    scope.setVariableValue(variable_name, new_value);
++  }
++
++  function listener(event, exec_state, event_data, data) {
++    try {
++      if (event == Debug.DebugEvent.Break) {
++        listener_called = true;
++        listener_delegate(exec_state);
++      }
++    } catch (e) {
++      exception = e;
++    }
++  }
++
++  // Add the debug event listener.
++  Debug.setListener(listener);
++
++  var actual_new_value;
++  try {
++    actual_new_result = fun();
++  } finally {
++    Debug.setListener(null);
++  }
++
++  if (exception != null) {
++   assertUnreachable("Exception in listener\n" + exception.stack);
++  }
++  assertTrue(listener_called);
++
++  assertEquals(expected_new_result, actual_new_result);
++}
++
++// Accepts a closure 'fun' that returns a variable from it's outer scope.
++// The test changes the value of variable via the handle to function and checks
++// that the return value changed accordingly.
++function RunClosureTest(scope_number, expected_old_result, variable_name,
++    new_value, expected_new_result, fun) {
++  var actual_old_result = fun();
++  assertEquals(expected_old_result, actual_old_result);
++
++  var fun_mirror = Debug.MakeMirror(fun);
++
++  var scope = fun_mirror.scope(scope_number);
++  scope.setVariableValue(variable_name, new_value);
++
++  var actual_new_result = fun();
++
++  assertEquals(expected_new_result, actual_new_result);
++}
++
++
++function ClosureTestCase(scope_index, old_result, variable_name, new_value,
++    new_result, success_expected, factory) {
++  this.scope_index_ = scope_index;
++  this.old_result_ = old_result;
++  this.variable_name_ = variable_name;
++  this.new_value_ = new_value;
++  this.new_result_ = new_result;
++  this.success_expected_ = success_expected;
++  this.factory_ = factory;
++}
++
++ClosureTestCase.prototype.run_pause_test = function() {
++  var th = this;
++  var fun = this.factory_(true);
++  this.run_and_catch_(function() {
++    RunPauseTest(th.scope_index_ + 1, th.old_result_, th.variable_name_,
++        th.new_value_, th.new_result_, fun);
++  });
++}
++
++ClosureTestCase.prototype.run_closure_test = function() {
++  var th = this;
++  var fun = this.factory_(false);
++  this.run_and_catch_(function() {
++    RunClosureTest(th.scope_index_, th.old_result_, th.variable_name_,
++        th.new_value_, th.new_result_, fun);
++  });
++}
++
++ClosureTestCase.prototype.run_and_catch_ = function(runnable) {
++  if (this.success_expected_) {
++    runnable();
++  } else {
++    assertThrows(runnable);
++  }
++}
++
++
++// Test scopes visible from closures.
++
++var closure_test_cases = [
++  new ClosureTestCase(0, 'cat', 'v1', 5, 5, true,
++      function Factory(debug_stop) {
++    var v1 = 'cat';
++    return function() {
++      if (debug_stop) debugger;
++      return v1;
++    }
++  }),
++
++  new ClosureTestCase(0, 4, 't', 7, 9, true, function Factory(debug_stop) {
++    var t = 2;
++    var r = eval("t");
++    return function() {
++      if (debug_stop) debugger;
++      return r + t;
++    }
++  }),
++
++  new ClosureTestCase(0, 6, 't', 10, 13, true, function Factory(debug_stop) {
++    var t = 2;
++    var r = eval("t = 3");
++    return function() {
++      if (debug_stop) debugger;
++      return r + t;
++    }
++  }),
++
++  new ClosureTestCase(0, 17, 's', 'Bird', 'Bird', true,
++      function Factory(debug_stop) {
++    eval("var s = 17");
++    return function() {
++      if (debug_stop) debugger;
++      return s;
++    }
++  }),
++
++  new ClosureTestCase(2, 'capybara', 'foo', 77, 77, true,
++      function Factory(debug_stop) {
++    var foo = "capybara";
++    return (function() {
++      var bar = "fish";
++      try {
++        throw {name: "test exception"};
++      } catch (e) {
++        return function() {
++          if (debug_stop) debugger;
++          bar = "beast";
++          return foo;
++        }
++      }
++    })();
++  }),
++
++  new ClosureTestCase(0, 'AlphaBeta', 'eee', 5, '5Beta', true,
++      function Factory(debug_stop) {
++    var foo = "Beta";
++    return (function() {
++      var bar = "fish";
++      try {
++        throw "Alpha";
++      } catch (eee) {
++        return function() {
++          if (debug_stop) debugger;
++          return eee + foo;
++        }
++      }
++    })();
++  })
++];
++
++for (var i = 0; i < closure_test_cases.length; i++) {
++  closure_test_cases[i].run_pause_test();
++}
++
++for (var i = 0; i < closure_test_cases.length; i++) {
++  closure_test_cases[i].run_closure_test();
++}
++
++
++// Test local scope.
++
++RunPauseTest(0, 'HelloYou', 'u', 'We', 'HelloWe', (function Factory() {
++  return function() {
++    var u = "You";
++    var v = "Hello";
++    debugger;
++    return v + u;
++  }
++})());
++
++RunPauseTest(0, 'Helloworld', 'p', 'GoodBye', 'HelloGoodBye',
++    (function Factory() {
++  function H(p) {
++    var v = "Hello";
++    debugger;
++    return v + p;
++  }
++  return function() {
++    return H("world");
++  }
++})());
++
++RunPauseTest(0, 'mouse', 'v1', 'dog', 'dog', (function Factory() {
++  return function() {
++    var v1 = 'cat';
++    eval("v1 = 'mouse'");
++    debugger;
++    return v1;
++  }
++})());
++
++RunPauseTest(0, 'mouse', 'v1', 'dog', 'dog', (function Factory() {
++  return function() {
++    eval("var v1 = 'mouse'");
++    debugger;
++    return v1;
++  }
++})());
++
++
++// Test value description protocol JSON
++
++assertEquals(true, Debug.TestApi.CommandProcessorResolveValue({value: true}));
++
++assertSame(null, Debug.TestApi.CommandProcessorResolveValue({type: "null"}));
++assertSame(undefined,
++    Debug.TestApi.CommandProcessorResolveValue({type: "undefined"}));
++
++assertSame("123", Debug.TestApi.CommandProcessorResolveValue(
++    {type: "string", stringDescription: "123"}));
++assertSame(123, Debug.TestApi.CommandProcessorResolveValue(
++    {type: "number", stringDescription: "123"}));
++
++assertSame(Number, Debug.TestApi.CommandProcessorResolveValue(
++    {handle: Debug.MakeMirror(Number).handle()}));
++assertSame(RunClosureTest, Debug.TestApi.CommandProcessorResolveValue(
++    {handle: Debug.MakeMirror(RunClosureTest).handle()}));
+-- 
+1.8.4
+
