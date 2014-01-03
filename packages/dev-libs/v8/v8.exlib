@@ -15,7 +15,7 @@ require googlecode scm-svn
 
 DOWNLOADS=""
 
-export_exlib_phases src_compile src_install src_test
+export_exlib_phases src_prepare src_compile src_install src_test
 
 SUMMARY="Google V8 Javascript engine"
 DESCRIPTION="Implements ECMAScript as specified in ECMA-262, 3rd Edition, runs standalone or embedded into any C++ Application"
@@ -28,12 +28,24 @@ MYOPTIONS="
         amd64
 "
 
+DEPENDENCIES="
+    build:
+        dev-lang/python:*[<3.0]
+"
+
 v8_platform() {
     if option "platform:amd64" ; then
         echo "x64"
     elif option "platform:x86" ; then
         echo "ia32"
     fi
+}
+
+v8_src_prepare() {
+    edo sed -i -e 's:#!/usr/bin/env python:#!/usr/bin/env python2:' \
+        build/gyp/gyp \
+        tools/run-tests.py
+    edo sed -i -e 's/python/python2/' Makefile
 }
 
 v8_src_compile() {
