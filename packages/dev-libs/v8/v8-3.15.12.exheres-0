@@ -1,10 +1,7 @@
 # Copyright 2012 Michael Thomas <aelmalinka@gmail.com>
 # Distributed under the terms of the GNU General Public Licesnse v2
 
-# NOTE: seems that v8 upstream hasn't actually tagged 3.15.12 in svn
-SCM_REVISION=13262
-
-require v8 [ gyp_revision=1501 ]
+require v8 [ gyp_revision=f7bc250ccc4d619a1cf238db87e5979f89ff36d7 ]
 
 SLOT="0"
 PLATFORMS="~amd64"

@@ -3,17 +3,21 @@
 
 myexparam gyp_revision=""
 
-SCM_REPOSITORY="http://v8.googlecode.com/svn/"
+if ever is_scm; then
+    SCM_gyp_REPOSITORY="https://github.com/svn2github/gyp"
+    [[ "$(exparam gyp_revision)" ]] && SCM_gyp_REVISION=$(exparam gyp_revision)
+    SCM_gyp_UNPACK_TO="${WORK}/build/gyp"
 
-SCM_gyp_REPOSITORY="http://gyp.googlecode.com/svn/"
-[[ "$(exparam gyp_revision)" ]] && SCM_gyp_REVISION=$(exparam gyp_revision)
-SCM_gyp_UNPACK_TO="${WORK}/build/gyp"
+    SCM_SECONDARY_REPOSITORIES="gyp"
+else
+    SCM_REPOSITORY="https://github.com/svn2github/gyp"
+    [[ "$(exparam gyp_revision)" ]] && SCM_REVISION=$(exparam gyp_revision)
+    SCM_UNPACK_TO="${WORK}/build/gyp"
 
-SCM_SECONDARY_REPOSITORIES="gyp"
+    require scm-git
+fi
 
-require googlecode scm-svn
-
-DOWNLOADS=""
+require github [ user=v8 ]
 
 export_exlib_phases src_prepare src_compile src_install src_test
 
@@ -40,6 +44,14 @@ v8_platform() {
         echo "ia32"
     fi
 }
+
+if ! ever is_scm; then
+src_unpack() {
+    default
+
+    scm_src_unpack
+}
+fi
 
 v8_src_prepare() {
     edo sed -i -e 's:#!/usr/bin/env python:#!/usr/bin/env python2:' \
