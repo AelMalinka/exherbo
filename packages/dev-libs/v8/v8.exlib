@@ -71,7 +71,7 @@ v8_src_compile() {
 }
 
 v8_src_install() {
-    insinto /usr
+    insinto /usr/$(exhost --target)
     doins -r include
 
     pushd "${WORK}/out/$(v8_platform).release"
