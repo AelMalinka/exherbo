@@ -1,0 +1,19 @@
+# Copyright 2016 (c) Michael Thomas (malinka) <malinka@entropy-development.com>
+# Distributed under the terms of the GNU General Public License v2
+
+PROJECT="compute-image-packages"
+VERSION=20160719
+
+require github [ user=GoogleCloudPlatform project=${PROJECT} tag=${VERSION} ] setup-py [ import=setuptools has_bin=true work=${PROJECT}-${VERSION} ]
+
+SUMMARY="Scripts and tools for Google Compute Engine Linux images"
+LICENCES="Apache-2.0"
+SLOT=0
+PLATFORMS="~amd64"
+
+DEPENDENCIES="
+    run:
+        dev-python/boto
+"
+
+RESTRICT="test"
