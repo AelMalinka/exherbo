@@ -9,4 +9,7 @@ SLOT="0"
 PLATFORMS="~amd64"
 MYOPTIONS=""
 
-DEPENDENCIES=""
+DEPENDENCIES="
+    build:
+        dev-perl/Module-Package
+"
