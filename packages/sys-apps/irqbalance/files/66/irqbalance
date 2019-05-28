@@ -1,0 +1,15 @@
+[main]
+@type = longrun
+@name = irqbalance
+@description = "Run the irqbalance daemon"
+@user = ( root )
+@options = ( env log )
+
+[start]
+@build = auto
+@execute = (
+    execl-cmdline -s { irqbalance --foreground ${CMD_ARGS} }
+)
+
+[environment]
+!CMD_ARGS=--
